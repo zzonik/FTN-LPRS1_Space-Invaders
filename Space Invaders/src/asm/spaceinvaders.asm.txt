@@ -1,0 +1,430 @@
+.data
+6
+0
+75
+0x100
+0x140
+0x200
+3, 7    ;; top
+5, 0	;; enemy1
+4, 0	;; enemy2
+10, 8	;; rocket
+-1, -1  ;; end
+
+.text
+/*
+	Spisak registara:
+	R0 - tmp register
+	R1 - tmp chunk x
+	R2 - tmp chunk y
+	R3 - color
+	R4 - p_top
+	R5 - p_pb_dec
+	R6 - p_frame_sync
+	R7 - p_rgb_matrix
+*/
+
+begin:
+	;; Setup pointers and color.
+	inc R0, R0                  ;; addr = 1
+	inc R0, R0                  ;; addr = 2
+	inc R0, R0                  ;; addr = 3
+	ld R7, R0                   ;; R7 <- p_rgb_matrix 0x100
+	inc R0, R0                  ;; addr = 4
+	ld R6, R0                   ;; R6 <- p_frame_sync 0x140
+	inc R0, R0                  ;; addr = 5
+	ld R5, R0                   ;; R5 <- p_pb_dec 0x200
+	inc R3, R3                  ;; color = RED
+	
+frame_sync_rising_edge:
+frame_sync_wait_0:
+	ld R0, R6                   ;; R0 <- p_frame_sync
+	jmpnz frame_sync_wait_0
+frame_sync_wait_1:
+	ld R0, R6                   ;; R0 <- p_frame_sync
+	jmpz frame_sync_wait_1
+
+draw_begin:
+	sub R0, R0, R0              ;; addr = 0
+	ld R4, R0 
+	
+	;; TOP 
+	ld R1, R4                    
+	inc R4, R4
+	ld R2, R4                  
+	inc R4, R4                  
+	;; p_rgb_matrix + (y << 3) + x
+	shl R2, R2
+	shl R2, R2
+	shl R2, R2
+	add R2, R1, R2              ;; (y << 3) + x
+	add R2, R7, R2              ;; p_rgb_matrix + 
+	shl R3, R3
+	st R3, R2
+	shr R3, R3
+	
+	;; ENEMY1
+	ld R1, R4                    
+	inc R4, R4
+	ld R2, R4                  
+	inc R4, R4                  
+	;; p_rgb_matrix + (y << 3) + x
+	shl R2, R2
+	shl R2, R2
+	shl R2, R2
+	add R2, R1, R2              ;; (y << 3) + x
+	add R2, R7, R2              ;; p_rgb_matrix + 
+	st R3, R2
+	
+	;; ENEMY2
+	ld R1, R4                    
+	inc R4, R4
+	ld R2, R4                  
+	inc R4, R4                  
+	;; p_rgb_matrix + (y << 3) + x
+	shl R2, R2
+	shl R2, R2
+	shl R2, R2
+	add R2, R1, R2              ;; (y << 3) + x
+	add R2, R7, R2              ;; p_rgb_matrix + 
+	st R3, R2
+	
+	;; ROCKET
+	ld R1, R4                    
+	inc R4, R4
+	ld R2, R4                  
+	inc R4, R4                  
+	;; p_rgb_matrix + (y << 3) + x
+	shl R2, R2
+	shl R2, R2
+	shl R2, R2
+	add R2, R1, R2              ;; (y << 3) + x
+	add R2, R7, R2              ;; p_rgb_matrix + 
+	shl R3, R3
+	shl R3, R3
+	st R3, R2
+	shr R3, R3
+	shr R3, R3
+draw_end:
+
+	
+move_top_begin:
+	
+	sub R0, R0, R0              ;; addr = 0
+	
+	ld R4, R0                   ;; R4 <- p_top
+	ld R1, R4                   ;; R1 <- p_top-> x
+	ld R0, R5                   ;; R0 <- p_pb_dec-> x
+
+	add R0, R0, R1              ;; Moving x by controls		
+	
+	sub R2,R2,R2
+	dec R2,R2			    ;; Postavljamo R2 na -1 i proveravamo da li je R0 na -1	
+	sub R2,R2,R0
+	jmpz move_top_end		    ;; Ako jeste, preskoci korak cuvanja nove vrednosti koordinate x_top-a
+
+	sub R2,R2,R2
+	inc R2,R2
+	shl R2,R2
+	shl R2,R2
+	shl R2,R2			    ;; Postavaljamo R2 na 8 i proveravamo da li je R0 na 8	
+	sub R2,R2,R0
+	jmpz move_top_end		    ;; Ako jeste, preskoci korak cuvanja nove vrednosti koordinate x_top-a
+
+	st R0, R4                   ;; Cuvamo novu x koordinatu topa 
+
+move_top_end:
+
+move_rocket1:
+	inc R5, R5			    ;; Citamo vrednost move_y dela push_button-a iz vhdla	
+	ld R0, R5
+	jmps move_rocket2		    ;; Ako je -1 (sto znaci da je kliknut move_up), kreni u racunanje rakete, ako nije vrati R5 na move_x i preskoci ceo segment rakete	
+	dec R5, R5
+	jmp rocket_end
+move_rocket2:
+	dec R5, R5
+	sub R0, R0, R0
+	ld R4, 	R0
+	ld R1, R4	;; x kodrdinata topa	
+	
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+
+	st R1, R4	;; cuvamo x kordinatu topa u x kordinatu rakete
+	ld R1, R4   ;; cuvamo x kordinatu rakete
+
+	inc R4, R4 	
+	ld R2, R4	;; y koordinata rakete
+	jmps count_frames_begin
+
+rocket_go: 
+	dec R2, R2
+	st R2, R4
+
+find_enemy1:
+	;; R1 - x rakete
+	sub R0, R0, R0 
+	ld R4, R0	
+         
+	inc R4, R4
+	inc R4, R4		
+	ld R2, R4		;; R2 - x_enemy1
+
+	sub R2, R2, R1
+	jmpz find_enemy1Y
+	jmp find_enemy2
+	
+find_enemy1Y:
+	;; R4 -xEnemy1
+	;; R2 -xEnemy1
+	;; R1 -xRakete
+	inc R4, R4
+	ld R2, R4 ;; yEnemy1
+
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	
+	ld R1, R4;; yRakate
+
+	sub R2, R2, R1
+	jmpz kill_enemy1	
+	jmp find_enemy2
+	
+kill_enemy1:	
+	sub R0, R0, R0
+	ld R4, R0
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	
+	ld R2, R4 	 ;; R2 - y-enemy1
+	sub R2, R2, R2
+	st R2, R4	;; vrati y enemy1 na nulu
+
+	dec R4, R4      ;; vracam na x osu
+	ld R1, R4	
+	inc R1, R1	
+	inc R1, R1	
+	inc R1, R1	
+	inc R1, R1	
+	inc R1, R1	
+	
+	dec R4,R4	;; 7 od topa
+	ld R2, R4 	;; 7 u R2	
+	sub R2, R2, R1
+	jmps shift1
+
+	inc R4, R4 ;; xEnemy1
+	st R1, R4
+	jmp rocket_end_enemy
+shift1:
+	shr R1, R1
+	shr R1, R1
+	
+	inc R4, R4 ;; xEnemy1
+	st R1, R4
+	jmp rocket_end_enemy
+
+find_enemy2:
+	sub R0, R0, R0 
+	ld R4, R0	
+         
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4	
+	ld R2, R4		;; R2 - x_enemy2
+	
+	inc R4, R4
+	inc R4, R4
+	ld R1, R4		;; R1 - x rakete
+
+	sub R2, R2, R1
+	jmpz find_enemy2Y
+	jmp count_frames_begin
+	
+find_enemy2Y:
+	;; R4 -xRakete
+	;; R2 -xEnemy2
+	;; R1 -xRakete
+	sub R0, R0, R0 
+	ld R4, R0	
+         
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	
+	ld R2, R4 ;; yEnemy2
+
+	inc R4, R4
+	inc R4, R4
+	
+	ld R1, R4;; yRakate
+
+	sub R2, R2, R1
+	jmpz kill_enemy2
+	jmp count_frames_begin
+	
+kill_enemy2:	
+	sub R0, R0, R0 
+	ld R4, R0	
+         
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	
+	ld R2, R4 ;; yEnemy2
+	
+	sub R2, R2, R2
+	st R2, R4	;; vrati y enemy2 na nulu
+
+	sub R0, R0, R0 
+	ld R4, R0	
+         
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4 	;; xEnemy2
+	ld R1, R4		;; R1 xEnemy2
+	
+	inc R1, R1	
+	inc R1, R1	
+	inc R1, R1
+	inc R1, R1
+	
+	sub R0, R0, R0 
+	ld R4, R0	
+	inc R4, R4
+	ld R2, R4 	;; 7 u R2	
+	sub R2, R2, R1
+	jmps shift2
+
+	inc R4, R4 
+	inc R4, R4
+	inc R4, R4 ;; xEnemy2
+	st R1, R4
+	jmp rocket_end_enemy
+	
+shift2:
+	shr R1, R1
+	shr R1, R1
+	shr R1, R1
+	
+	inc R4, R4 
+	inc R4, R4
+	inc R4, R4 ;; xEnemy2
+	st R1, R4
+	jmp rocket_end_enemy
+rocket_end:
+	sub R0, R0, R0
+	ld R4, R0
+	inc R4, R4
+	ld R1, R4 ;; sedmica iz y topa
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4 		;; yRakate
+	
+	inc R1, R1	;; da bi bio na osmici
+	
+	st R1, R4 ;; osmica u y raketu
+	jmp count_frames_begin
+
+rocket_end_enemy:
+	sub R0, R0, R0
+	ld R4, R0
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4 		;; yRakate
+	ld R1, R4
+	
+	dec R1, R1
+	dec R1, R1
+	dec R1, R1
+	dec R1, R1
+	dec R1, R1
+	dec R1, R1
+	dec R1, R1
+	st R1, R4
+	jmp count_frames_begin
+	
+count_frames_begin:
+	sub R0, R0, R0              ;; addr = 0
+	inc R0, R0
+	ld R1, R0                   ;; R1 <- frame_cnt
+	inc R0, R0
+	ld R2, R0                   ;; R2 <- frames_per_heartbeat
+	dec R0, R0
+	inc R1, R1                  ;; frame_cnt++;
+	sub R2, R2, R1              ;; frame_cnt == frames_per_heartbeat
+	jmpz count_frames_heatbeat  ;; Jump if equal.
+	st R1, R0                   ;; R1 -> frame_cnt
+	jmp frame_sync_rising_edge
+count_frames_heatbeat:
+	sub R1, R1, R1
+	st R1, R0                   ;; R1 i.e. 0 -> frame_cnt
+count_frames_end:
+
+move_enemy1:
+	sub R0, R0, R0              ;; addr = 0
+	ld R4, R0 		    ;; x topa  		    
+	inc R4, R4
+	ld R2, R4			;; sedmica iz y topa
+	
+	inc R4, R4
+	inc R4, R4		    ;; Y_enemy1	
+	ld R1, R4	
+
+	inc R1, R1
+	
+	sub R2, R1, R2
+	jmpz gameover
+	
+	st R1, R4    
+move_enemy1_end:
+
+move_enemy2:
+	sub R0, R0, R0              ;; addr = 0
+	ld R4, R0 		    ;; x topa  		    
+	inc R4, R4
+	ld R2, R4			;; sedmica iz y topa
+	
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4
+	inc R4, R4		    ;; Y_enemy2	
+	ld R1, R4	
+
+	inc R1, R1
+	sub R2, R1, R2
+	jmpz gameover
+	
+	st R1, R4  	
+move_enemy2_end:
+
+end:													
+	jmp frame_sync_rising_edge		
+
+gameover: 
+	sub R0, R0, R0
+	
+					
+			
+		
+
